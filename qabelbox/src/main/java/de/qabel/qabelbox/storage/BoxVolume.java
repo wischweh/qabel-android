@@ -25,6 +25,7 @@ import java.util.UUID;
 import de.qabel.core.crypto.CryptoUtils;
 import de.qabel.core.crypto.DecryptedPlaintext;
 import de.qabel.core.crypto.QblECKeyPair;
+import de.qabel.qabelbox.exceptions.QblServerException;
 import de.qabel.qabelbox.exceptions.QblStorageException;
 import de.qabel.qabelbox.exceptions.QblStorageNotFound;
 import de.qabel.qabelbox.providers.BoxProvider;
@@ -92,7 +93,9 @@ public class BoxVolume {
         }
         int id = transferManager.uploadAndDeleteLocalfileOnSuccess(prefix, name, tmp, null);
         if (!transferManager.waitFor(id)) {
-            throw new QblStorageException("Upload failed");
+            Exception uploadException=transferManager.lookupError(id);
+            // TODO Discuss: Maybe change signature and pass error through?
+            throw new QblStorageException("Upload failed",uploadException);
         }
     }
 
