@@ -26,7 +26,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import de.qabel.qabelbox.QabelBoxApplication;
+import de.qabel.qabelbox.R;
 import de.qabel.qabelbox.communication.VolumeFileTransferHelper;
+import de.qabel.qabelbox.config.AppPreference;
 import de.qabel.qabelbox.exceptions.QblStorageException;
 import de.qabel.qabelbox.storage.BoxFolder;
 import de.qabel.qabelbox.storage.BoxNavigation;
@@ -46,11 +49,15 @@ public class BoxProviderTest extends InstrumentationTestCase {
     private BoxProviderTester mProvider;
     private Context mContext;
 
+    public void configureTestServer() {
+        new AppPreference(QabelBoxApplication.getInstance().getApplicationContext()).setToken(QabelBoxApplication.getInstance().getApplicationContext().getString(R.string.blockserver_magic_testtoken));
+    }
+
     @Override
     protected void setUp() throws Exception {
         super.setUp();
         Log.d(TAG, "setUp");
-
+        configureTestServer();
         mContext = getInstrumentation().getTargetContext();
         mProvider = new BoxProviderTester();
         mProvider.bindToService(mContext);
