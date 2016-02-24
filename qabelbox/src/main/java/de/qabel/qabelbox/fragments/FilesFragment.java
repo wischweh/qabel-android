@@ -7,6 +7,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.support.annotation.NonNull;
 import android.support.v4.content.LocalBroadcastManager;
 import android.support.v4.widget.SwipeRefreshLayout;
 import android.support.v7.app.ActionBar;
@@ -32,9 +33,9 @@ import java.util.Map;
 
 import de.qabel.qabelbox.QabelBoxApplication;
 import de.qabel.qabelbox.R;
+import de.qabel.qabelbox.activities.BoxVolumeActivity;
 import de.qabel.qabelbox.adapter.FilesAdapter;
 import de.qabel.qabelbox.exceptions.QblStorageException;
-import de.qabel.qabelbox.providers.DocumentIdParser;
 import de.qabel.qabelbox.services.LocalBroadcastConstants;
 import de.qabel.qabelbox.services.LocalQabelService;
 import de.qabel.qabelbox.storage.BoxFile;
@@ -56,7 +57,7 @@ public class FilesFragment extends BaseFragment {
     private FilesListListener mListener;
     protected SwipeRefreshLayout swipeRefreshLayout;
     private FilesFragment self;
-    private AsyncTask<Void, Void, Void> browseToTask;
+    private BrowseToTask browseToTask;
 
     private MenuItem mSearchAction;
     private boolean isSearchOpened = false;
@@ -64,62 +65,41 @@ public class FilesFragment extends BaseFragment {
     protected BoxVolume mBoxVolume;
     private AsyncTask<String, Void, StorageSearch> searchTask;
     private StorageSearch mCachedStorageSearch;
-    private DocumentIdParser documentIdParser;
     View mEmptyView;
     View mLoadingView;
     private LocalQabelService mService;
 
+    private LoadDataTask loadDataTask;
+
     public static FilesFragment newInstance(final BoxVolume boxVolume) {
 
         final FilesFragment filesFragment = new FilesFragment();
-        fillFragmentData(boxVolume, filesFragment);
         return filesFragment;
     }
 
-    protected static void fillFragmentData(final BoxVolume boxVolume, final FilesFragment filesFragment) {
 
-        filesFragment.mBoxVolume = boxVolume;
-        final FilesAdapter filesAdapter = new FilesAdapter(new ArrayList<BoxObject>());
+    /**
+     * loads data asynchronous if no other tasks are currently going on
+     *
+     * @param boxVolume
+     * @return
+     */
+    protected void loadFragmentData(@NonNull BoxVolume boxVolume) {
+        cancelSearchTask();
+        cancelBrowseToTask();
+        loadDataTask = new LoadDataTask(boxVolume);
+        loadDataTask.executeOnExecutor(serialExecutor);
 
-        filesFragment.setAdapter(filesAdapter);
-
-        new AsyncTask<Void, Void, Void>() {
-            @Override
-            protected void onPreExecute() {
-
-                super.onPreExecute();
-                filesFragment.setIsLoading(true);
-            }
-
-            @Override
-            protected Void doInBackground(Void... params) {
-
-                try {
-                    filesFragment.setBoxNavigation(boxVolume.navigate());
-                } catch (QblStorageException e) {
-                    Log.w(TAG, "Cannot navigate to root. maybe first initialization", e);
-                    try {
-                        boxVolume.createIndex();
-                        filesFragment.setBoxNavigation(boxVolume.navigate());
-                    } catch (QblStorageException e1) {
-                        Log.e(TAG, "Creating a volume failed", e1);
-                        cancel(true);
-                        return null;
-                    }
-                }
-                filesFragment.fillAdapter(filesAdapter);
-                return null;
-            }
-
-            @Override
-            protected void onPostExecute(Void aVoid) {
-
-                super.onPostExecute(aVoid);
-                filesFragment.setIsLoading(false);
-                filesAdapter.notifyDataSetChanged();
-            }
-        }.executeOnExecutor(serialExecutor);
     }
+
+    private void clearFilesAdapter() {
+        if (getFilesAdapter() == null) {
+            setAdapter(new FilesAdapter(new ArrayList<BoxObject>()));
+        }
+        getFilesAdapter().clear();
+   }
+
+
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -132,12 +112,10 @@ public class FilesFragment extends BaseFragment {
 			actionBar.setTitle(getTitle());
 		}
 
-        documentIdParser = new DocumentIdParser();
-
         mService = QabelBoxApplication.getInstance().getService();
         self = this;
         LocalBroadcastManager.getInstance(getActivity()).registerReceiver(mMessageReceiver,
-				new IntentFilter(LocalBroadcastConstants.INTENT_UPLOAD_BROADCAST));
+                new IntentFilter(LocalBroadcastConstants.INTENT_UPLOAD_BROADCAST));
     }
 
     private BroadcastReceiver mMessageReceiver = new BroadcastReceiver() {
@@ -214,20 +192,20 @@ public class FilesFragment extends BaseFragment {
         filesListRecyclerView.setAdapter(filesAdapter);
 
         filesListRecyclerView.addOnScrollListener(new RecyclerView.OnScrollListener() {
-			@Override
-			public void onScrolled(RecyclerView recyclerView, int dx, int dy) {
+            @Override
+            public void onScrolled(RecyclerView recyclerView, int dx, int dy) {
 
-				super.onScrolled(recyclerView, dx, dy);
-				int lastCompletelyVisibleItem = ((LinearLayoutManager) recyclerViewLayoutManager).findLastCompletelyVisibleItemPosition();
-				int firstCompletelyVisibleItem = ((LinearLayoutManager) recyclerViewLayoutManager).findFirstCompletelyVisibleItemPosition();
-				if (lastCompletelyVisibleItem == filesAdapter.getItemCount() - 1
-						&& firstCompletelyVisibleItem > 0) {
-					mListener.onScrolledToBottom(true);
-				} else {
-					mListener.onScrolledToBottom(false);
-				}
-			}
-		});
+                super.onScrolled(recyclerView, dx, dy);
+                int lastCompletelyVisibleItem = ((LinearLayoutManager) recyclerViewLayoutManager).findLastCompletelyVisibleItemPosition();
+                int firstCompletelyVisibleItem = ((LinearLayoutManager) recyclerViewLayoutManager).findFirstCompletelyVisibleItemPosition();
+                if (lastCompletelyVisibleItem == filesAdapter.getItemCount() - 1
+                        && firstCompletelyVisibleItem > 0) {
+                    mListener.onScrolledToBottom(true);
+                } else {
+                    mListener.onScrolledToBottom(false);
+                }
+            }
+        });
         return view;
     }
 
@@ -244,8 +222,14 @@ public class FilesFragment extends BaseFragment {
 
     @Override
     public void onAttach(Activity activity) {
-
         super.onAttach(activity);
+        try {
+            BoxVolumeActivity boxVolumeInterface = (BoxVolumeActivity) activity;
+            loadFragmentData(boxVolumeInterface.getBoxVolume());
+        } catch (ClassCastException e) {
+            throw new ClassCastException(activity.toString()
+                    + " must implement BoxVolumeActivity");
+        }
         try {
             mListener = (FilesListListener) activity;
         } catch (ClassCastException e) {
@@ -367,7 +351,8 @@ public class FilesFragment extends BaseFragment {
 
     @Override
     public void onPause() {
-
+        cancelBrowseToTask();
+        cancelSearchTask();
         if (isSearchOpened) {
             removeSearchInActionbar(actionBar);
         }
@@ -379,74 +364,17 @@ public class FilesFragment extends BaseFragment {
      *
      * @param searchText
      */
-    private void startSearch(final String searchText) {
-
-        cancelSearchTask();
-        searchTask = new AsyncTask<String, Void, StorageSearch>() {
-
-            @Override
-            protected void onPreExecute() {
-
-                super.onPreExecute();
-                setIsLoading(true);
-            }
-
-            @Override
-            protected void onCancelled(StorageSearch storageSearch) {
-
-                setIsLoading(false);
-                super.onCancelled(storageSearch);
-            }
-
-            @Override
-            protected void onPostExecute(StorageSearch storageSearch) {
-
-                setIsLoading(false);
-
-                //check if files found
-                if (storageSearch == null || storageSearch.filterOnlyFiles().getResults().size() == 0) {
-                    Toast.makeText(getActivity(), R.string.no_entrys_found, Toast.LENGTH_SHORT).show();
-                    return;
-                }
-                if (!mActivity.isFinishing() && !searchTask.isCancelled()) {
-                    boolean needRefresh = mCachedStorageSearch != null;
-                    try {
-                        mCachedStorageSearch = storageSearch.clone();
-                    } catch (CloneNotSupportedException e) {
-                        e.printStackTrace();
-                    }
-
-                    FilesSearchResultFragment fragment = FilesSearchResultFragment.newInstance(mCachedStorageSearch, searchText, needRefresh);
-                    mActivity.toggle.setDrawerIndicatorEnabled(false);
-                    getFragmentManager().beginTransaction().replace(R.id.fragment_container, fragment, FilesSearchResultFragment.TAG).addToBackStack(null).commit();
-                }
-            }
-
-            @Override
-            protected StorageSearch doInBackground(String... params) {
-
-                try {
-                    if (mCachedStorageSearch != null && mCachedStorageSearch.getResults().size() > 0) {
-                        return mCachedStorageSearch;
-                    }
-
-                    return new StorageSearch(mBoxVolume.navigate());
-                } catch (QblStorageException e) {
-                    e.printStackTrace();
-                }
-
-                return null;
-            }
-        };
-        searchTask.executeOnExecutor(serialExecutor);
-    }
-
-    private void cancelSearchTask() {
-
-        if (searchTask != null) {
-            searchTask.cancel(true);
+    private boolean startSearch(final String searchText) {
+        if (!areTasksPending()) {
+            searchTask = new SearchTask(searchText);
+            searchTask.executeOnExecutor(serialExecutor);
+            return true;
+        } else {
+            return false;
         }
     }
+
+
 
     /**
      * Sets visibility of loading spinner. Visibility is stored if method is invoked
@@ -600,47 +528,7 @@ public class FilesFragment extends BaseFragment {
         void onDoRefresh(FilesFragment filesFragment, BoxNavigation boxNavigation, FilesAdapter filesAdapter);
     }
 
-    public boolean browseToParent() {
 
-        cancelBrowseToTask();
-
-        if (boxNavigation == null || !boxNavigation.hasParent()) {
-            return false;
-        }
-
-        browseToTask = new AsyncTask<Void, Void, Void>() {
-            @Override
-            protected void onPreExecute() {
-
-                super.onPreExecute();
-                preBrowseTo();
-            }
-
-            @Override
-            protected Void doInBackground(Void... voids) {
-
-                waitForBoxNavigation();
-                try {
-                    boxNavigation.navigateToParent();
-                    fillAdapter(filesAdapter);
-                } catch (QblStorageException e) {
-                    Log.d(TAG, "browseTo failed", e);
-                }
-                return null;
-            }
-
-            @Override
-            protected void onPostExecute(Void aVoid) {
-
-                super.onPostExecute(aVoid);
-                setIsLoading(false);
-                updateSubtitle();
-                filesAdapter.notifyDataSetChanged();
-            }
-        };
-        browseToTask.executeOnExecutor(serialExecutor);
-        return true;
-    }
 
     @Override
     public void updateSubtitle() {
@@ -651,11 +539,6 @@ public class FilesFragment extends BaseFragment {
         }
         if (actionBar != null)
             actionBar.setSubtitle(path);
-    }
-
-    private void preBrowseTo() {
-
-        setIsLoading(true);
     }
 
     protected void fillAdapter(FilesAdapter filesAdapter) {
@@ -730,60 +613,220 @@ public class FilesFragment extends BaseFragment {
         return true;
     }
 
-    public void browseTo(final BoxFolder navigateTo) {
 
-        Log.d(TAG, "Browsing to " + navigateTo.name);
+    public boolean areTasksPending() {
+        return searchTask != null || browseToTask != null;
+    }
+
+    public void cancelOngoingTasks() {
         cancelBrowseToTask();
-        browseToTask = new AsyncTask<Void, Void, Void>() {
-            @Override
-            protected void onPreExecute() {
+        cancelSearchTask();
+    }
 
-                super.onPreExecute();
-                preBrowseTo();
-            }
+    private void cancelSearchTask() {
 
-            @Override
-            protected Void doInBackground(Void... voids) {
-
-                waitForBoxNavigation();
-                try {
-                    boxNavigation.navigate(navigateTo);
-                    fillAdapter(filesAdapter);
-                } catch (QblStorageException e) {
-                    Log.e(TAG, "browseTo failed", e);
-                }
-                return null;
-            }
-
-            @Override
-            protected void onPostExecute(Void aVoid) {
-
-                super.onPostExecute(aVoid);
-                setIsLoading(false);
-                updateSubtitle();
-                filesAdapter.notifyDataSetChanged();
-                browseToTask = null;
-            }
-
-            @Override
-            protected void onCancelled() {
-
-                super.onCancelled();
-                setIsLoading(false);
-                browseToTask = null;
-                Toast.makeText(getActivity(), R.string.aborted,
-                        Toast.LENGTH_SHORT).show();
-            }
-        };
-        browseToTask.executeOnExecutor(serialExecutor);
+        if (searchTask != null) {
+            searchTask.cancel(true);
+        }
     }
 
     private void cancelBrowseToTask() {
-
         if (browseToTask != null) {
             Log.d(TAG, "Found a running browseToTask");
             browseToTask.cancel(true);
             Log.d(TAG, "Canceled browserToTask");
+        }
+    }
+
+
+    /**
+     * Triggers asynchronous loading and navigating to the current parent folder.
+     *
+     * @return true if task has been triggered. False if going up is not possible or another navigating task is already going on
+     */
+    public boolean browseToParent() {
+        if (boxNavigation == null || !boxNavigation.hasParent()) {
+            return false;
+        }
+        if (!areTasksPending()) {
+            browseToTask = new BrowseToTask(null);
+            browseToTask.executeOnExecutor(serialExecutor);
+            return true;
+        } else {
+            Log.d(TAG, "browsing already ongoing. Will skip");
+            return false;
+        }
+    }
+
+    /**
+     * Triggers asynchronous loading and navigating to the current parent folder.
+     *
+     * @return true if task has been triggered. False if going up is not possible or another navigating task is already going on
+     */
+    public boolean browseTo(@NonNull BoxFolder target) {
+        if (!areTasksPending()) {
+            browseToTask = new BrowseToTask(target);
+            browseToTask.executeOnExecutor(serialExecutor);
+            return true;
+        } else {
+            Log.d(TAG, "browsing already ongoing. Will skip");
+            return false;
+        }
+    }
+
+    /**
+     * A task to browse to (and load the data)
+     * if the target folder is null the denotes the current parent folder
+     */
+
+    public class BrowseToTask extends AsyncTask<Void, Void, Void> {
+
+        BoxFolder targetFolder;
+
+        /**
+         * @param targetFolder
+         */
+        public BrowseToTask(BoxFolder targetFolder) {
+            this.targetFolder = targetFolder;
+        }
+
+        @Override
+        protected void onPreExecute() {
+
+            super.onPreExecute();
+            setIsLoading(true);
+        }
+
+        @Override
+        protected Void doInBackground(Void... voids) {
+            waitForBoxNavigation();
+            try {
+                if (targetFolder == null) {
+                    boxNavigation.navigateToParent();
+                } else {
+                    boxNavigation.navigate(targetFolder);
+                }
+                fillAdapter(filesAdapter);
+            } catch (QblStorageException e) {
+                Log.d(TAG, "browseTo failed", e);
+            }
+            return null;
+        }
+
+        @Override
+        protected void onPostExecute(Void aVoid) {
+            super.onPostExecute(aVoid);
+            setIsLoading(false);
+            updateSubtitle();
+            filesAdapter.notifyDataSetChanged();
+        }
+
+    }
+
+    public class SearchTask extends AsyncTask<String, Void, StorageSearch> {
+
+        String searchText;
+
+        public SearchTask(String searchText) {
+            this.searchText = searchText;
+        }
+
+        @Override
+        protected void onPreExecute() {
+
+            super.onPreExecute();
+            setIsLoading(true);
+        }
+
+        @Override
+        protected void onCancelled(StorageSearch storageSearch) {
+
+            setIsLoading(false);
+            super.onCancelled(storageSearch);
+        }
+
+        @Override
+        protected void onPostExecute(StorageSearch storageSearch) {
+
+            setIsLoading(false);
+
+            //check if files found
+            if (storageSearch == null || storageSearch.filterOnlyFiles().getResults().size() == 0) {
+                Toast.makeText(getActivity(), R.string.no_entrys_found, Toast.LENGTH_SHORT).show();
+                return;
+            }
+            if (!mActivity.isFinishing() && !searchTask.isCancelled()) {
+                boolean needRefresh = mCachedStorageSearch != null;
+                try {
+                    mCachedStorageSearch = storageSearch.clone();
+                } catch (CloneNotSupportedException e) {
+                    e.printStackTrace();
+                }
+
+                FilesSearchResultFragment fragment = FilesSearchResultFragment.newInstance(mCachedStorageSearch, searchText, needRefresh);
+                mActivity.toggle.setDrawerIndicatorEnabled(false);
+                getFragmentManager().beginTransaction().replace(R.id.fragment_container, fragment, FilesSearchResultFragment.TAG).addToBackStack(null).commit();
+            }
+        }
+
+        @Override
+        protected StorageSearch doInBackground(String... params) {
+
+            try {
+                if (mCachedStorageSearch != null && mCachedStorageSearch.getResults().size() > 0) {
+                    return mCachedStorageSearch;
+                }
+
+                return new StorageSearch(mBoxVolume.navigate());
+            } catch (QblStorageException e) {
+                e.printStackTrace();
+            }
+
+            return null;
+        }
+    }
+
+    public class LoadDataTask extends AsyncTask<Void, Void, Void> {
+        BoxVolume targetVolume;
+
+        public LoadDataTask(BoxVolume targetVolume) {
+            this.targetVolume = targetVolume;
+        }
+
+        @Override
+        protected void onPreExecute() {
+
+            super.onPreExecute();
+            setIsLoading(true);
+            clearFilesAdapter();
+        }
+
+        @Override
+        protected Void doInBackground(Void... params) {
+
+            try {
+                setBoxNavigation(targetVolume.navigate());
+            } catch (QblStorageException e) {
+                Log.w(TAG, "Cannot navigate to root. maybe first initialization", e);
+                try {
+                    targetVolume.createIndex();
+                    setBoxNavigation(targetVolume.navigate());
+                } catch (QblStorageException e1) {
+                    Log.e(TAG, "Creating a volume failed", e1);
+                    cancel(true);
+                    return null;
+                }
+            }
+            fillAdapter(filesAdapter);
+            return null;
+        }
+
+        @Override
+        protected void onPostExecute(Void aVoid) {
+
+            super.onPostExecute(aVoid);
+            setIsLoading(false);
+            filesAdapter.notifyDataSetChanged();
         }
     }
 }

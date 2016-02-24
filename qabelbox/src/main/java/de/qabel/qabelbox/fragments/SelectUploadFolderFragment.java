@@ -3,7 +3,6 @@ package de.qabel.qabelbox.fragments;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
-import android.support.v7.widget.RecyclerView;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Menu;
@@ -28,7 +27,6 @@ public class SelectUploadFolderFragment extends FilesFragment {
 
     private final String TAG = this.getClass().getSimpleName();
     private ArrayList<Uri> uris;
-    private RecyclerView.LayoutManager recyclerViewLayoutManager;
 
     private void loadIdentityFiles(final BoxVolume boxVolume) {
 
@@ -158,7 +156,6 @@ public class SelectUploadFolderFragment extends FilesFragment {
     public static SelectUploadFolderFragment newInstance(BoxVolume boxVolume, ArrayList<Uri> data, Identity activeIdentity) {
 
         SelectUploadFolderFragment fragment = new SelectUploadFolderFragment();
-        fillFragmentData(boxVolume, fragment);
         fragment.uris = data;
         fragment.loadIdentityFiles(fragment.getBoxVolume());
         return fragment;

@@ -25,7 +25,7 @@ import de.qabel.qabelbox.storage.StorageSearch;
 /**
  * Created by danny on 08.01.2016.
  */
-public class FilesSearchResultFragment extends FilesFragment {
+public class FilesSearchResultFragment extends FilesFragment implements FilesAdapter.OnItemClickListener {
 
     protected static final String TAG = FilesFragment.class.getSimpleName();
     private StorageSearch mSearchResult;
@@ -109,21 +109,21 @@ public class FilesSearchResultFragment extends FilesFragment {
      */
     private void setClickListener() {
 
-        setOnItemClickListener(new FilesAdapter.OnItemClickListener() {
-            @Override
-            public void onItemClick(View view, int position) {
+        setOnItemClickListener(this);
+    }
 
-                final BoxObject boxObject = getFilesAdapter().get(position);
-                if (boxObject instanceof BoxFile) {
-                    mActivity.showFile(boxObject);
-                }
-            }
+    @Override
+    public void onItemClick(View view, int position) {
 
-            @Override
-            public void onItemLockClick(View view, int position) {
+        final BoxObject boxObject = getFilesAdapter().get(position);
+        if (boxObject instanceof BoxFile) {
+            mActivity.showFile(boxObject);
+        }
+    }
 
-            }
-        });
+    @Override
+    public void onItemLockClick(View view, int position) {
+
     }
 
     /**
