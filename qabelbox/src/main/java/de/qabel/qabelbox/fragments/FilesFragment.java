@@ -3,8 +3,10 @@ package de.qabel.qabelbox.fragments;
 import android.app.Activity;
 import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
@@ -28,14 +30,20 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.cocosw.bottomsheet.BottomSheet;
+
+import java.net.URLConnection;
 import java.util.ArrayList;
 import java.util.Map;
 
 import de.qabel.qabelbox.QabelBoxApplication;
 import de.qabel.qabelbox.R;
 import de.qabel.qabelbox.activities.BoxVolumeActivity;
+import de.qabel.qabelbox.activities.MainActivity;
 import de.qabel.qabelbox.adapter.FilesAdapter;
+import de.qabel.qabelbox.communication.VolumeFileTransferHelper;
 import de.qabel.qabelbox.exceptions.QblStorageException;
+import de.qabel.qabelbox.helper.ExternalApps;
 import de.qabel.qabelbox.services.LocalBroadcastConstants;
 import de.qabel.qabelbox.services.LocalQabelService;
 import de.qabel.qabelbox.storage.BoxFile;
@@ -236,7 +244,74 @@ public class FilesFragment extends BaseFragment {
             throw new ClassCastException(activity.toString()
                     + " must implement FilesListListener");
         }
+        setOnItemClickListener(new FilesAdapter.OnItemClickListener() {
+            @Override
+            public void onItemClick(View view, int position) {
+
+                final BoxObject boxObject = getFilesAdapter().get(position);
+                if (boxObject != null) {
+                    if (boxObject instanceof BoxFolder) {
+                        browseTo(((BoxFolder) boxObject));
+                    } else if (boxObject instanceof BoxFile) {
+                        // Open
+                        // TODO This is a dangeorous cast and should be cleaned up as soon as the MainActivity/FilesFragment have a better seperation
+                        ((MainActivity) getActivity()).showFile(boxObject);
+                    }
+                }
+            }
+
+            @Override
+            public void onItemLockClick(View view, final int position) {
+
+                final BoxObject boxObject = getFilesAdapter().get(position);
+                new BottomSheet.Builder(getActivity()).title(boxObject.name).sheet(R.menu.files_bottom_sheet)
+                        .listener(new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialog, int which) {
+
+                                switch (which) {
+                                    case R.id.open:
+                                        ExternalApps.openExternApp(getActivity(), VolumeFileTransferHelper.getUri(boxObject, mBoxVolume, getBoxNavigation()), getMimeType(boxObject), Intent.ACTION_VIEW);
+                                        break;
+                                    case R.id.edit:
+                                        ExternalApps.openExternApp(getActivity(), VolumeFileTransferHelper.getUri(boxObject, mBoxVolume, getBoxNavigation()), getMimeType(boxObject), Intent.ACTION_EDIT);
+                                        break;
+                                    case R.id.share:
+                                        ExternalApps.share(getActivity(), VolumeFileTransferHelper.getUri(boxObject, mBoxVolume, getBoxNavigation()), getMimeType(boxObject));
+                                        break;
+                                    case R.id.delete:
+                                        MainActivity mainActivity = (MainActivity) getActivity();
+                                        mainActivity.delete(boxObject);
+                                        break;
+                                    case R.id.export:
+                                        // Export handled in the MainActivity
+                                        if (boxObject instanceof BoxFolder) {
+                                            Toast.makeText(getActivity(), R.string.folder_export_not_implemented,
+                                                    Toast.LENGTH_SHORT).show();
+                                        } else {
+                                            ((MainActivity) getActivity()).onExport(getBoxNavigation(), boxObject);
+                                        }
+                                        break;
+                                }
+                            }
+                        }).show();
+            }
+
+        });
     }
+
+    //@todo move outside
+    private String getMimeType(BoxObject boxObject) {
+
+        return getMimeType(VolumeFileTransferHelper.getUri(boxObject, mBoxVolume, getBoxNavigation()));
+    }
+
+    //@todo move outside
+    private String getMimeType(Uri uri) {
+
+        return URLConnection.guessContentTypeFromName(uri.toString());
+    }
+
 
     @Override
     public void onCreateOptionsMenu(Menu menu, MenuInflater inflater) {
@@ -438,11 +513,14 @@ public class FilesFragment extends BaseFragment {
         return getString(R.string.headline_files);
     }
 
+
     /**
      * handle back pressed
      *
      * @return true if back handled
      */
+
+
     public boolean handleBackPressed() {
 
         if (isSearchOpened) {
@@ -719,6 +797,7 @@ public class FilesFragment extends BaseFragment {
             setIsLoading(false);
             updateSubtitle();
             filesAdapter.notifyDataSetChanged();
+            browseToTask = null;
         }
 
     }

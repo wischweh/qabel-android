@@ -59,13 +59,10 @@ import de.qabel.qabelbox.fragments.ImageViewerFragment;
 import de.qabel.qabelbox.fragments.QRcodeFragment;
 import de.qabel.qabelbox.fragments.SelectUploadFolderFragment;
 import de.qabel.qabelbox.helper.CacheFileHelper;
-import de.qabel.qabelbox.helper.ExternalApps;
 import de.qabel.qabelbox.helper.Sanity;
 import de.qabel.qabelbox.helper.UIHelper;
 import de.qabel.qabelbox.providers.BoxProvider;
 import de.qabel.qabelbox.services.LocalQabelService;
-import de.qabel.qabelbox.storage.BoxFile;
-import de.qabel.qabelbox.storage.BoxFolder;
 import de.qabel.qabelbox.storage.BoxNavigation;
 import de.qabel.qabelbox.storage.BoxObject;
 import de.qabel.qabelbox.storage.BoxVolume;
@@ -276,7 +273,6 @@ public class MainActivity extends CrashReportingActivity
 
             @Override
             public void onServiceConnected(ComponentName name, IBinder service) {
-
                 LocalQabelService.LocalBinder binder = (LocalQabelService.LocalBinder) service;
                 mService = binder.getService();
                 onLocalServiceConnected(getIntent());
@@ -284,7 +280,6 @@ public class MainActivity extends CrashReportingActivity
 
             @Override
             public void onServiceDisconnected(ComponentName name) {
-
                 mService = null;
             }
         };
@@ -478,7 +473,7 @@ public class MainActivity extends CrashReportingActivity
     public void showFile(BoxObject boxObject) {
 
         Uri uri = VolumeFileTransferHelper.getUri(boxObject, boxVolume, filesFragment.getBoxNavigation());
-        String type = getMimeType(uri);
+        String type = URLConnection.guessContentTypeFromName(uri.toString());
         Log.v(TAG, "Mime type: " + type);
         Log.v(TAG, "Uri: " + uri.toString() + " " + uri.toString().length());
 
@@ -504,19 +499,8 @@ public class MainActivity extends CrashReportingActivity
         startActivityForResult(Intent.createChooser(viewIntent, "Open with"), REQUEST_EXTERN_VIEWER_APP);
     }
 
-    //@todo move outside
-    private String getMimeType(BoxObject boxObject) {
 
-        return getMimeType(VolumeFileTransferHelper.getUri(boxObject, boxVolume, filesFragment.getBoxNavigation()));
-    }
-
-    //@todo move outside
-    private String getMimeType(Uri uri) {
-
-        return URLConnection.guessContentTypeFromName(uri.toString());
-    }
-
-    private void delete(final BoxObject boxObject) {
+    public void delete(final BoxObject boxObject) {
 
         new AlertDialog.Builder(self)
                 .setTitle(R.string.confirm_delete_title)
@@ -568,6 +552,8 @@ public class MainActivity extends CrashReportingActivity
                 }).create().show();
     }
 
+    //TODO: should be handled inside fragments
+
     @Override
     public void onBackPressed() {
 
@@ -598,10 +584,14 @@ public class MainActivity extends CrashReportingActivity
                         }
                         break;
                     case TAG_FILES_FRAGMENT:
-
                         toggle.setDrawerIndicatorEnabled(true);
-                        if (!filesFragment.handleBackPressed() && !filesFragment.browseToParent()) {
-                            finishAffinity();
+                        // Code will be much cleaner if FileFragment handles its own onBackPressed
+                        if (!filesFragment.areTasksPending()) {
+                            if (!(filesFragment.handleBackPressed()) && !filesFragment.browseToParent()) {
+                                finishAffinity();
+                            }
+                        } else {
+                            Log.w(TAG, "tasks still pending in FilesFragment. Will ignore back press");
                         }
                         break;
                     case TAG_CONTACT_LIST_FRAGMENT:
@@ -735,6 +725,8 @@ public class MainActivity extends CrashReportingActivity
             getFragmentManager().beginTransaction().remove(filesFragment).commit();
         }
         filesFragment = FilesFragment.newInstance(boxVolume);
+
+        /*
         filesFragment.setOnItemClickListener(new FilesAdapter.OnItemClickListener() {
             @Override
             public void onItemClick(View view, int position) {
@@ -785,7 +777,9 @@ public class MainActivity extends CrashReportingActivity
                             }
                         }).show();
             }
+
         });
+        */
     }
 
 
@@ -851,7 +845,7 @@ public class MainActivity extends CrashReportingActivity
         exportUri = uri;
 
         // Chose a suitable place for this file, determined by the mime type
-        String type = getMimeType(uri);
+        String type = URLConnection.guessContentTypeFromName(uri.toString());
         if (type == null) {
             type = FALLBACK_MIMETYPE;
         }
