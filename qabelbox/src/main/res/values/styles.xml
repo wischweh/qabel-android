@@ -154,4 +154,16 @@
         <item name="android:textSize">@dimen/textsize_bottom_ab</item>
     </style>
 
+    <style name="badge">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:background">@drawable/shapecount</item>
+        <item name="android:textColor">@color/white</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textSize">12dp</item>
+        <item name="android:paddingLeft">3dp</item>
+        <item name="android:paddingRight">3dp</item>
+        <item name="android:layout_margin">0dp</item>
+    </style>
+
 </resources>

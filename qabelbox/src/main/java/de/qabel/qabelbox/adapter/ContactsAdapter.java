@@ -52,7 +52,7 @@ public class ContactsAdapter extends RecyclerView.Adapter<ContactsAdapter.Contac
         public final TextView mTextViewContactName;
         public final TextView mTextViewContactDetails;
         public final ImageView mImageView;
-		private final View mNewMessageView;
+		private final TextView newMessageBadge;
 
 		public ContactViewHolder(View v) {
 
@@ -61,7 +61,7 @@ public class ContactsAdapter extends RecyclerView.Adapter<ContactsAdapter.Contac
             v.setOnLongClickListener(this);
             mTextViewContactName = (TextView) v.findViewById(R.id.textViewItemName);
             mTextViewContactDetails = (TextView) v.findViewById(R.id.textViewItemDetail);
-			mNewMessageView=v.findViewById(R.id.newMessageIndicator);
+            newMessageBadge=(TextView) v.findViewById(R.id.item_contact_newmessagecount_badge);
             mImageView = (ImageView) v.findViewById(R.id.itemIcon);
         }
 
@@ -114,16 +114,9 @@ public class ContactsAdapter extends RecyclerView.Adapter<ContactsAdapter.Contac
 		ContactAdapterItem item = mContacts.get(position);
 		holder.mTextViewContactName.setText(item.getAlias());
         holder.mTextViewContactDetails.setText(item.getEcPublicKey().getReadableKeyIdentifier());
-		if(item.hasNewMessages)
-		{
-			holder.mNewMessageView.setVisibility(View.VISIBLE);
-		}
-		else
-		{
-			holder.mNewMessageView.setVisibility(View.INVISIBLE);
-		}
-
-    }
+		holder.newMessageBadge.setVisibility(item.newMessages>0 ? View.VISIBLE : View.GONE);
+        holder.newMessageBadge.setText(String.valueOf(item.newMessages));
+   }
 
     @Override
     public int getItemCount() {

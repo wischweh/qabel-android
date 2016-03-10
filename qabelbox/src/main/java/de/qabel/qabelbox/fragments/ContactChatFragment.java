@@ -177,31 +177,12 @@ public class ContactChatFragment extends BaseFragment {
 		actionBar.setSubtitle(contact.getAlias());
 
 		refreshMessages();
-		refreshMessagesAsync();
+		chatServer.sync();
 
 		return view;
 	}
 
-	boolean isSyncing = false;
 
-	protected void refreshMessagesAsync() {
-		if (!isSyncing) {
-			isSyncing = true;
-			new AsyncTask<Void, Void, Collection<DropMessage>>() {
-				@Override
-				protected void onPostExecute(Collection<DropMessage> dropMessages) {
-					refreshMessages();
-					isSyncing = false;
-				}
-
-				@Override
-				protected Collection<DropMessage> doInBackground(Void... params) {
-					isSyncing = true;
-					return chatServer.refreshList();
-				}
-			}.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
-		}
-	}
 
 	/**
 	 * Get the messages from the ChatServer and refreshes the local list and view.
@@ -212,6 +193,7 @@ public class ContactChatFragment extends BaseFragment {
 		for (ChatMessageItem item : items) {
 			Log.v(TAG, "add message " + item.drop_payload);
 			messages.add(item);
+
 		}
 		chatServer.setAllMessagesReaded(contact);
 		fillAdapter(messages);
@@ -409,7 +391,7 @@ public class ContactChatFragment extends BaseFragment {
 		ArrayList<ChatMessageItem> data = new ArrayList<>();
 		for (DropMessage item : messages) {
 			ChatMessageItem message = new ChatMessageItem(item);
-			message.isNew = 1;
+			message.isNew = true;
 			data.add(message);
 		}
 		return data;
@@ -427,9 +409,8 @@ public class ContactChatFragment extends BaseFragment {
 
 		int id = item.getItemId();
 		if (id == R.id.action_chat_detail_refresh) {
-			refreshMessagesAsync();
+			chatServer.sync();
 		}
-
 		return super.onOptionsItemSelected(item);
 	}
 

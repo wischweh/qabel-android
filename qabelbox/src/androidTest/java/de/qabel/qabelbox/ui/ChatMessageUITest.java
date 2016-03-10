@@ -64,7 +64,7 @@ import static org.hamcrest.Matchers.is;
  */
 
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
-public class ChatMessageUITest {
+public class 	ChatMessageUITest {
 
 	@Rule
 	public ActivityTestRule<MainActivity> mActivityTestRule = new ActivityTestRule<>(MainActivity.class, false, true);

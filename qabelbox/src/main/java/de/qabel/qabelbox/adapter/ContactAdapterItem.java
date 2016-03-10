@@ -8,12 +8,12 @@ import de.qabel.core.config.Contact;
  * Created by danny on 25.02.16.
  */
 public class ContactAdapterItem extends Contact {
-	boolean hasNewMessages = false;
+	int newMessages = 0;
 
-	public ContactAdapterItem(Contact contact, boolean hasNewMessages) {
+	public ContactAdapterItem(Contact contact, int newMessages) {
 		super(contact.getAlias(),contact.getDropUrls(),contact.getEcPublicKey());
 		setEmail((contact.getEmail()));
 		setPhone((contact.getPhone()));
-		this.hasNewMessages = hasNewMessages;
+		this.newMessages = newMessages;
 	}
 }

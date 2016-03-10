@@ -110,11 +110,15 @@ public class ContactFragment extends BaseFragment {
         int id = item.getItemId();
         if (id == R.id.action_chat_refresh) {
 
-            new AsyncTask<Void, Void, Collection<DropMessage>>() {
+            new AsyncTask<Void, Void, Void>() {
                 @Override
-                protected Collection<DropMessage> doInBackground(Void... params) {
-
-                    return chatServer.refreshList();
+                protected Void doInBackground(Void... params) {
+                    if (chatServer!=null) {
+                        chatServer.sync();
+                    } else {
+                        Log.w(TAG,"chatserver is null. Not yet bound? Will ignore sync request");
+                    }
+                    return null;
                 }
             }.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
         }
@@ -194,8 +198,11 @@ public class ContactFragment extends BaseFragment {
             Contacts contacts = QabelBoxApplication.getInstance().getService().getContacts();
             final int count = contacts.getContacts().size();
             ArrayList<ContactAdapterItem> items = new ArrayList<>();
-            for (Contact c : contacts.getContacts()) {
-                items.add(new ContactAdapterItem(c, chatServer.hasNewMessages(c)));
+
+            if (chatServer!=null) {
+                for (Contact c : contacts.getContacts()) {
+                    items.add(new ContactAdapterItem(c, chatServer.getNewMessageCount(c)));
+                }
             }
             contactListAdapter = new ContactsAdapter(items);
             setClickListener();

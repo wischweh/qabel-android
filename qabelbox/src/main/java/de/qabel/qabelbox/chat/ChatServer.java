@@ -1,5 +1,6 @@
 package de.qabel.qabelbox.chat;
 
+import android.os.AsyncTask;
 import android.util.Log;
 
 import org.json.JSONException;
@@ -47,7 +48,7 @@ public class ChatServer {
 	 * click on refresh button
 	 */
 
-	public Collection<DropMessage> refreshList() {
+	private Collection<DropMessage> pullDropMessages() {
 		long lastRetrieved = dataBase.getLastRetrievedDropMessageTime();
 		Log.d(TAG, "last retrieved dropmessage time " + lastRetrieved + " / " + System.currentTimeMillis());
 		String identityKey=QabelBoxApplication.getInstance().getService().getActiveIdentity().getEcPublicKey().getReadableKeyIdentifier();
@@ -59,17 +60,12 @@ public class ChatServer {
 			for (DropMessage item : result) {
 				ChatMessageItem cms = new ChatMessageItem(item);
 				cms.receiver=identityKey;
-				cms.isNew = 0;
+				cms.isNew = true;
 				storeIntoDB(cms);
-			}
-
-			//@todo replace this with header from server response.
-			//@see https://github.com/Qabel/qabel-android/issues/272
-			for (DropMessage item : result) {
+				//@todo replace this with header from server response.
 				lastRetrieved = Math.max(item.getCreationDate().getTime(), lastRetrieved);
-			}
+        			}
 		}
-		lastRetrieved = 0;
 		dataBase.setLastRetrivedDropMessagesTime(lastRetrieved);
 		Log.d(TAG, "new retrieved dropmessage time " + lastRetrieved);
 
@@ -77,9 +73,28 @@ public class ChatServer {
 		return result;
 	}
 
+	boolean isSyncing = false;
+
+	public void sync() {
+		if (!isSyncing) {
+			isSyncing = true;
+			new AsyncTask<Void, Void, Collection<DropMessage>>() {
+				@Override
+				protected Collection<DropMessage> doInBackground(Void... params) {
+					isSyncing = true;
+					return pullDropMessages();
+				}
+
+				@Override
+				protected void onPostExecute(Collection<DropMessage> dropMessages) {
+					isSyncing = false;
+					sendCallbacksRefreshed();
+				}
+			}.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
+		}
+	}
 
 	public void storeIntoDB(ChatMessageItem item) {
-
 		if (item != null) {
 			dataBase.put(item);
 		}
@@ -124,8 +139,8 @@ public class ChatServer {
 	}
 
 
-	public boolean hasNewMessages(Contact c) {
-		return dataBase.getNewMessageCount(c) > 0;
+	public int getNewMessageCount(Contact c) {
+		return dataBase.getNewMessageCount(c);
 	}
 
 	public int setAllMessagesReaded(Contact c) {
@@ -135,6 +150,8 @@ public class ChatServer {
 	public ChatMessageItem[] getAllMessages(Contact c) {
 		return dataBase.get(c.getEcPublicKey().getReadableKeyIdentifier());
 	}
+
+
 
 	public interface ChatServerCallback {
 

@@ -28,11 +28,11 @@ public class ChatMessageItem {
 	public String drop_payload;
 	private final String TAG = this.getClass().getSimpleName();
 
-	//inten values for db storage
-	public short isNew = 1;//1 for new, 0 for old
+	//intern values for db storage
+	public boolean isNew = true;//1 for new, 0 for old
 	public int id = 0;
 
-	public ChatMessageItem(int id, short isNew, long time_stamp, String sender, String receiver, String acknowledge_id, String drop_payload_type, String drop_payload)
+	public ChatMessageItem(int id, boolean isNew, long time_stamp, String sender, String receiver, String acknowledge_id, String drop_payload_type, String drop_payload)
 	{
 		this.id = id;
 		this.isNew = isNew;
@@ -63,7 +63,7 @@ public class ChatMessageItem {
 		receiver = receiverKey;
 		drop_payload = payload;
 		drop_payload_type = payload_type;
-		isNew = 1;
+		isNew = true;
 	}
 
 	public long getTime() {
