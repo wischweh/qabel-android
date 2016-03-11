@@ -11,6 +11,7 @@ import java.util.Collection;
 import java.util.List;
 
 import de.qabel.core.config.Contact;
+import de.qabel.core.config.Entity;
 import de.qabel.core.config.Identity;
 import de.qabel.core.drop.DropMessage;
 import de.qabel.qabelbox.QabelBoxApplication;
@@ -25,11 +26,10 @@ public class ChatServer {
 	public static final String TAG_URL = "url";
 	public static final String TAG_KEY = "key";
 
-	private final ChatMessagesDataBase dataBase;
+	protected final ChatMessagesDataBase dataBase;
 	private final List<ChatServerCallback> callbacks = new ArrayList<>();
 
 	public ChatServer(Identity currentIdentity) {
-
 		dataBase = new ChatMessagesDataBase(QabelBoxApplication.getInstance(), currentIdentity);
 	}
 
@@ -49,28 +49,36 @@ public class ChatServer {
 	 */
 
 	private Collection<DropMessage> pullDropMessages() {
+		Log.d(TAG, "Pulling DropMessages");
 		long lastRetrieved = dataBase.getLastRetrievedDropMessageTime();
-		Log.d(TAG, "last retrieved dropmessage time " + lastRetrieved + " / " + System.currentTimeMillis());
-		String identityKey=QabelBoxApplication.getInstance().getService().getActiveIdentity().getEcPublicKey().getReadableKeyIdentifier();
 		Collection<DropMessage> result = QabelBoxApplication.getInstance().getService().retrieveDropMessages(QabelBoxApplication.getInstance().getService().getActiveIdentity(), lastRetrieved);
+		retrieveMessages(result);
+		return result;
+	}
 
-		if (result != null) {
-			Log.d(TAG, "new message count: " + result.size());
+	protected void retrieveMessages(Collection<DropMessage> retrievedMessages) {
+		String identityKey=QabelBoxApplication.getInstance().getService().getActiveIdentity().getEcPublicKey().getReadableKeyIdentifier();
+		long lastRetrieved=Long.MIN_VALUE;
+		Log.d(TAG, "last retrieved dropmessage time " + lastRetrieved + " / " + System.currentTimeMillis());
+		if (retrievedMessages != null) {
+			Log.d(TAG, "new message count: " + retrievedMessages.size());
 			//store into db
-			for (DropMessage item : result) {
-				ChatMessageItem cms = new ChatMessageItem(item);
-				cms.receiver=identityKey;
-				cms.isNew = true;
-				storeIntoDB(cms);
-				//@todo replace this with header from server response.
-				lastRetrieved = Math.max(item.getCreationDate().getTime(), lastRetrieved);
-        			}
+			for (DropMessage item : retrievedMessages) {
+				lastRetrieved=storeDropMessage(item, identityKey, lastRetrieved);
+			}
 		}
 		dataBase.setLastRetrivedDropMessagesTime(lastRetrieved);
 		Log.d(TAG, "new retrieved dropmessage time " + lastRetrieved);
+		notifyCallbacks();
+	}
 
-		sendCallbacksRefreshed();
-		return result;
+	protected long storeDropMessage(DropMessage item, String recieversIdentityKey, long lastRetrieved) {
+		ChatMessageItem cms = new ChatMessageItem(item);
+		cms.receiver=recieversIdentityKey;
+		cms.isNew = true;
+		storeIntoDB(cms);
+		//@todo replace this with header from server response.
+		return Math.max(item.getCreationDate().getTime(), lastRetrieved);
 	}
 
 	boolean isSyncing = false;
@@ -88,7 +96,7 @@ public class ChatServer {
 				@Override
 				protected void onPostExecute(Collection<DropMessage> dropMessages) {
 					isSyncing = false;
-					sendCallbacksRefreshed();
+					notifyCallbacks();
 				}
 			}.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
 		}
@@ -103,7 +111,7 @@ public class ChatServer {
 	/**
 	 * send all listener that chatmessage list was refrehsed
 	 */
-	private void sendCallbacksRefreshed() {
+	private void notifyCallbacks() {
 
 		for (ChatServerCallback callback : callbacks) {
 			callback.onRefreshed();
@@ -111,8 +119,10 @@ public class ChatServer {
 	}
 
 	public DropMessage getTextDropMessage(String message) {
+		return getTextDropMessage(QabelBoxApplication.getInstance().getService().getActiveIdentity(),message);
+	}
 
-		String payload_type = ChatMessageItem.BOX_MESSAGE;
+	public DropMessage getTextDropMessage(Entity sender, String message) {
 		JSONObject payloadJson = new JSONObject();
 		try {
 			payloadJson.put(TAG_MESSAGE, message);
@@ -120,8 +130,10 @@ public class ChatServer {
 			Log.e(TAG, "error on create json", e);
 		}
 		String payload = payloadJson.toString();
-		return new DropMessage(QabelBoxApplication.getInstance().getService().getActiveIdentity(), payload, payload_type);
+		return new DropMessage(sender, payload, ChatMessageItem.BOX_MESSAGE);
+
 	}
+
 
 	public DropMessage getShareDropMessage(String message, String url, String key) {
 

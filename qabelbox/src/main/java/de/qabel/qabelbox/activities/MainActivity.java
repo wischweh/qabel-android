@@ -88,8 +88,8 @@ public class MainActivity extends CrashReportingActivity
 	public static final int REQUEST_EXTERN_VIEWER_APP = 19;
 	public static final int REQUEST_EXTERN_SHARE_APP = 20;
 	public static final String TAG_FILES_FRAGMENT = "TAG_FILES_FRAGMENT";
-	private static final String TAG_CONTACT_LIST_FRAGMENT = "TAG_CONTACT_LIST_FRAGMENT";
-	private static final String TAG_ABOUT_FRAGMENT = "TAG_ABOUT_FRAGMENT";
+	public static final String TAG_CONTACT_LIST_FRAGMENT = "TAG_CONTACT_LIST_FRAGMENT";
+	public static final String TAG_ABOUT_FRAGMENT = "TAG_ABOUT_FRAGMENT";
 
 	private static final String TAG_MANAGE_IDENTITIES_FRAGMENT = "TAG_MANAGE_IDENTITIES_FRAGMENT";
 	private static final String TAG_FILES_SHARE_INTO_APP_FRAGMENT = "TAG_FILES_SHARE_INTO_APP_FRAGMENT";

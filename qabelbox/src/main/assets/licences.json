@@ -31,6 +31,12 @@
         "SLF4J",
         "SQLDroid 1.0.3"
       ]
+    },
+    {
+      "name": "BSD Licenced Third Party Components:",
+      "components": [
+        "JavaHamcrest"
+      ]
     }
   ]
 }
