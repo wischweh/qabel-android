@@ -227,7 +227,7 @@ public class LocalQabelService extends Service {
 		contactRepository.save(contact, identity);
 	}
 
-	public void deleteContact(Contact contact) throws PersistenceException {
+	public void deleteContact(Contact contact)  {
 		contactRepository.delete(contact, getActiveIdentity());
 	}
 
